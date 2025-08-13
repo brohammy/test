@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IPA Signer</title>
+</head>
+<body>
+  <h1>IPA Signer Tool</h1>
+  <form action="upload.php" method="post" enctype="multipart/form-data">
+    <label>IPA File:</label><br>
+    <input type="file" name="ipa" required><br><br>
+
+    <label>P12 Certificate:</label><br>
+    <input type="file" name="p12" required><br><br>
+
+    <label>Mobileprovision File:</label><br>
+    <input type="file" name="mobileprovision" required><br><br>
+
+    <label>P12 Password:</label><br>
+    <input type="text" name="password" required><br><br>
+
+    <input type="submit" value="Sign IPA">
+  </form>
+</body>
+</html>
+<?php
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
+// Save uploaded files
+move_uploaded_file($_FILES['ipa']['tmp_name'], 'file.ipa');
+move_uploaded_file($_FILES['p12']['tmp_name'], 'file.p12');
+move_uploaded_file($_FILES['mobileprovision']['tmp_name'], 'file.mobileprovision');
+
+// Save password securely
+file_put_contents('password.txt', $_POST['password']);
+
+// Prepare files
+$ipa = new CURLFile(realpath('file.ipa'));
+$p12 = new CURLFile(realpath('file.p12'));
+$mobileprovision = new CURLFile(realpath('file.mobileprovision'));
+$password = file_get_contents('password.txt');
+
+// Upload IPA
+$curl = curl_init('https://upload.starfiles.co/file');
+curl_setopt($curl, CURLOPT_POST, true);
+curl_setopt($curl, CURLOPT_POSTFIELDS, ['upload' => $ipa]);
+curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+$output = curl_exec($curl);
+$ipa_output = json_decode($output, true)['file'] ?? die('IPA upload failed');
+curl_close($curl);
+
+// Upload P12
+$curl = curl_init('https://upload.starfiles.co/file');
+curl_setopt($curl, CURLOPT_POST, true);
+curl_setopt($curl, CURLOPT_POSTFIELDS, ['upload' => $p12]);
+curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+$output = curl_exec($curl);
+$p12_output = json_decode($output, true)['file'] ?? die('P12 upload failed');
+curl_close($curl);
+
+// Upload Mobileprovision
+$curl = curl_init('https://upload.starfiles.co/file');
+curl_setopt($curl, CURLOPT_POST, true);
+curl_setopt($curl, CURLOPT_POSTFIELDS, ['upload' => $mobileprovision]);
+curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+$output = curl_exec($curl);
+$mobileprovision_output = json_decode($output, true)['file'] ?? die('Mobileprovision upload failed');
+curl_close($curl);
+
+// Sign IPA
+$sign_url = "https://api2.starfiles.co/sign_ipa?ipa=$ipa_output&p12=$p12_output&mobileprovision=$mobileprovision_output&password=$password";
+$signed_output = file_get_contents($sign_url);
+
+// Display result
+echo "<h2>Signed IPA Output</h2>";
+echo "<pre>" . htmlspecialchars($signed_output) . "</pre>";
+?>
